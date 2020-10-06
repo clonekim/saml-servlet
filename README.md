@@ -21,7 +21,7 @@ mvn package
 ```
 Google Test
 
--[x] Redirect Login Page (2FA 인증 후 ACS Url로 이동됨)
--[ ] Read IDP Meta
--[ ] Singing AuthnRequest  
--[ ] SAML Response parsing
+-[x] Redirect Login Page (2FA 인증 후 ACS Url로 이동됨)  
+-[ ] Read IDP Meta  
+-[ ] Singing AuthnRequest   
+-[ ] SAML Response parsing  

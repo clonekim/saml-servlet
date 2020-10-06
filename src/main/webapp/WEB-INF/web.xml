@@ -26,7 +26,7 @@
         <servlet-class>bonjour.saml.SamlSSO</servlet-class>
         <init-param>
             <param-name>config</param-name>
-            <param-value>/sso.properties</param-value>
+            <param-value>classpath:/sso.properties</param-value>
         </init-param>
     </servlet>
 

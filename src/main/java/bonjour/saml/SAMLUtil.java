@@ -51,6 +51,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -123,6 +124,33 @@ public class SAMLUtil {
         this.passive = passive;
     }
 
+    public static SAMLUtil createInstance(String config) throws IOException {
+        SAMLUtil samlUtil = new SAMLUtil();
+
+        Properties properties = new Properties();
+        properties.load(samlUtil.determinFilePath(config));
+
+        samlUtil.load(properties);
+
+        return samlUtil;
+    }
+
+    void load(Properties properties) {
+        this.identityProviderUrl = properties.getProperty("sso.identityProviderUrl");
+        this.issuerId = properties.getProperty("sso.issuerId");
+        this.assertionConsumerServiceUrl = properties.getProperty("sso.assertionConsumerServiceUrl");
+        this.forceAuthn = (boolean) properties.getOrDefault("sso.forceAuthn", false);
+        this.passive = (boolean) properties.getOrDefault("sso.passive", false);
+
+        this.keyStoreFile = properties.getProperty("sso.keystore.file");
+        this.alias = properties.getProperty("sso.keystore.alias");
+        this.password = properties.getProperty("sso.keystore.password");
+
+        if(this.keyStoreFile != null && keyStoreFile.trim().length() > 0) {
+            this.x509Certificate = getCredentai();
+        }
+
+    }
 
     public SAMLUtil(String issuerId, String identityProviderUrl, String assertionConsumerServiceURL, boolean forceAuthn, boolean passive, String keyStoreFile, String password, String alias) {
         this(issuerId, identityProviderUrl, assertionConsumerServiceURL, forceAuthn, passive);
@@ -247,13 +275,13 @@ public class SAMLUtil {
     }
 
 
-    InputStream determinFilePath() throws FileNotFoundException {
+    InputStream determinFilePath(String file) throws FileNotFoundException {
 
-        if(keyStoreFile.startsWith("classpath:")) {
-            return SAMLUtil.class.getResourceAsStream(keyStoreFile.substring(10));
+        if(file.startsWith("classpath:")) {
+            return SAMLUtil.class.getResourceAsStream(file.substring(10));
         }
-        else if(keyStoreFile.startsWith("file:")) {
-            return new FileInputStream(keyStoreFile.substring(5));
+        else if(file.startsWith("file:")) {
+            return new FileInputStream(file.substring(5));
         }
 
         throw new SAMLException("no such a file location");
@@ -263,7 +291,7 @@ public class SAMLUtil {
 
     BasicX509Credential getCredentai() {
 
-        try (InputStream is = determinFilePath()) {
+        try (InputStream is = determinFilePath(keyStoreFile)) {
 
             keyStore = KeyStore.getInstance("JKS");
             keyStore.load(is, password.toCharArray());

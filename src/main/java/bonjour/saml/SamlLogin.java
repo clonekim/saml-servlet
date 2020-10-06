@@ -3,14 +3,13 @@ package bonjour.saml;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
 
-@WebServlet(name = "SamlLoginServlet", urlPatterns = {"/saml/login"})
+//@WebServlet(name = "SamlLoginServlet", urlPatterns = {"/saml/login"})
 public class SamlLogin extends HttpServlet {
 
     SAMLUtil samlUtil = null;
@@ -22,17 +21,12 @@ public class SamlLogin extends HttpServlet {
             아래의 값은 property를 통해서 값을 설정 할 것
 
          */
-
-
-
-        samlUtil = new SAMLUtil("com:koreanair:crewnet:sp",
-                "https://accounts.google.com/o/saml2/idp?idpid=C04cdbghf",
-                "http://127.0.0.1:8080/saml/SSO",
-                false,
-                false,
-                "classpath:/keystore.jks",
-                "secret",
-                "samlkey");
+        try {
+            samlUtil = SAMLUtil.createInstance(config.getInitParameter("sso.config"));
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new ServletException(e);
+        }
 
     }
 

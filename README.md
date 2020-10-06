@@ -49,8 +49,8 @@ keytool -genkey -alias samlkey \
 ```
 Google Test
 
--[x] Redirect Login Page (2FA 인증 후 ACS Url로 이동됨)  
--[ ] Read IDP Meta  
--[x] Singing AuthnRequest   
--[x] SAML Response parsing    
--[ ] SAML Response validate
+- [x] Redirect Login Page (2FA 인증 후 ACS Url로 이동됨)  
+- [ ] Read IDP Meta  
+- [x] Singing AuthnRequest   
+- [x] SAML Response parsing    
+- [ ] SAML Response validate

@@ -9,8 +9,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
-import java.util.HashMap;
-import java.util.Map;
 
 @WebServlet(name = "SamlLoginServlet", urlPatterns = {"/saml/login"})
 public class SamlLogin extends HttpServlet {
@@ -26,9 +24,15 @@ public class SamlLogin extends HttpServlet {
          */
 
 
-        samlUtil = new SAMLUtil("com:yourcompany:helloworld",
-                "https://accounts.google.com/o/saml2/idp?idpid=xxxxx",
-                "http://127.0.0.1:8080/saml/SSO");
+
+        samlUtil = new SAMLUtil("com:koreanair:crewnet:sp",
+                "https://accounts.google.com/o/saml2/idp?idpid=C04cdbghf",
+                "http://127.0.0.1:8080/saml/SSO",
+                false,
+                false,
+                "classpath:/keystore.jks",
+                "secret",
+                "samlkey");
 
     }
 
@@ -38,9 +42,8 @@ public class SamlLogin extends HttpServlet {
 
         resp.setContentType("text/html;charset=UTF-8");
 
-        Map<String, String> values = new HashMap<>();
         Writer writer = resp.getWriter();
-        writer.write(samlUtil.getLoginHtml(samlUtil.createSAMLRequest(), values));
+        writer.write(samlUtil.createLoginRequest());
         writer.flush();
 
         resp.setHeader("Cache-Control", "no-cache, no-store");

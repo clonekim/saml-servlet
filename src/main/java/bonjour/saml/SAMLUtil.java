@@ -7,6 +7,7 @@ import org.joda.time.DateTime;
 import org.opensaml.DefaultBootstrap;
 import org.opensaml.common.SAMLObjectBuilder;
 import org.opensaml.common.SAMLVersion;
+import org.opensaml.common.SignableSAMLObject;
 import org.opensaml.common.xml.SAMLConstants;
 import org.opensaml.saml2.core.AuthnRequest;
 import org.opensaml.saml2.core.Issuer;
@@ -14,13 +15,20 @@ import org.opensaml.saml2.core.NameIDPolicy;
 import org.opensaml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml2.core.impl.NameIDPolicyBuilder;
 import org.opensaml.saml2.core.impl.RequestedAuthnContextBuilder;
-import org.opensaml.xml.Configuration;
-import org.opensaml.xml.ConfigurationException;
-import org.opensaml.xml.XMLObject;
-import org.opensaml.xml.XMLObjectBuilderFactory;
+import org.opensaml.xml.*;
 import org.opensaml.xml.io.Marshaller;
 import org.opensaml.xml.io.MarshallerFactory;
 import org.opensaml.xml.io.MarshallingException;
+import org.opensaml.xml.security.SecurityException;
+import org.opensaml.xml.security.SecurityHelper;
+import org.opensaml.xml.security.credential.Credential;
+import org.opensaml.xml.security.credential.UsageType;
+import org.opensaml.xml.security.x509.BasicX509Credential;
+import org.opensaml.xml.security.x509.X509KeyInfoGeneratorFactory;
+import org.opensaml.xml.signature.KeyInfo;
+import org.opensaml.xml.signature.SignatureConstants;
+import org.opensaml.xml.signature.SignatureException;
+import org.opensaml.xml.signature.impl.KeyInfoBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -30,8 +38,12 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.StringWriter;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -56,6 +68,12 @@ public class SAMLUtil {
     private String assertionConsumerServiceUrl;
 
 
+    private KeyStore keyStore;
+    private String keyStoreFile;
+    private String password;
+    private String alias;
+
+
     private XMLObjectBuilderFactory builderFactory;
 
 
@@ -71,21 +89,50 @@ public class SAMLUtil {
         return identityProviderUrl;
     }
 
-    public SAMLUtil( String issuerId, String identityProviderUrl, String assertionConsumerServiceURL) {
+    public SAMLUtil(String issuerId, String identityProviderUrl, String assertionConsumerServiceURL) {
         this();
+
+        if (issuerId == null)
+            throw new SAMLException("Issure Id is required");
+
+        if (identityProviderUrl == null)
+            throw new SAMLException("IDP Url is required");
+
+        if (assertionConsumerServiceURL == null)
+            throw new SAMLException("ACS Url is required");
+
+
         this.issuerId = issuerId;
         this.identityProviderUrl = identityProviderUrl;
         this.assertionConsumerServiceUrl = assertionConsumerServiceURL;
     }
 
-    public SAMLUtil(String issuerId, String identityProviderUrl,  String assertionConsumerServiceURL, boolean forceAuthn, boolean passive) {
+    public SAMLUtil(String issuerId, String identityProviderUrl, String assertionConsumerServiceURL, boolean forceAuthn, boolean passive) {
         this(issuerId, identityProviderUrl, assertionConsumerServiceURL);
         this.forceAuthn = forceAuthn;
         this.passive = passive;
     }
 
 
-    SAMLUtil()  {
+    public SAMLUtil(String issuerId, String identityProviderUrl, String assertionConsumerServiceURL, boolean forceAuthn, boolean passive, String keyStoreFile, String password, String alias) {
+        this(issuerId, identityProviderUrl, assertionConsumerServiceURL, forceAuthn, passive);
+
+        if (keyStoreFile == null)
+            throw new SAMLException("keystore file's name is required");
+
+        if (alias == null)
+            throw new SAMLException("alias for keystore is required");
+
+        if (password == null)
+            throw new SAMLException("password for keystore is required");
+
+        this.alias = alias;
+        this.password = password;
+        this.keyStoreFile = keyStoreFile;
+    }
+
+
+    SAMLUtil() {
         try {
             DefaultBootstrap.bootstrap();
             builderFactory = Configuration.getBuilderFactory();
@@ -95,11 +142,10 @@ public class SAMLUtil {
         }
     }
 
-    public String createSAMLRequest()  {
+    public String createSAMLRequest() {
 
         SAMLObjectBuilder<AuthnRequest> builder = (SAMLObjectBuilder<AuthnRequest>) builderFactory.getBuilder(AuthnRequest.DEFAULT_ELEMENT_NAME);
         AuthnRequest request = builder.buildObject();
-
 
 
         NameIDPolicyBuilder policy = new NameIDPolicyBuilder();
@@ -117,12 +163,13 @@ public class SAMLUtil {
         request.setIssueInstant(DateTime.now());
         request.setForceAuthn(this.forceAuthn);
         request.setIsPassive(this.passive);
-        request.setProtocolBinding(SAMLConstants.SAML2_POST_BINDING_URI );
-        request.setDestination( this.identityProviderUrl);
+        request.setProtocolBinding(SAMLConstants.SAML2_POST_BINDING_URI);
+        request.setDestination(this.identityProviderUrl);
 
         /* Your issuer URL */
         request.setIssuer(buildIssuer(this.issuerId));
 
+        signSAMLObject(request);
 
 
         /* Setting jsonRequestString as StringEntity */
@@ -162,13 +209,105 @@ public class SAMLUtil {
         } catch (MarshallingException | TransformerException e) {
             e.printStackTrace();
             throw new SAMLException(e);
-
-
         }
     }
 
 
-    String getLoginHtml( String request, Map<String, String> values ) {
+    InputStream determinFilePath() throws FileNotFoundException {
+
+        if(keyStoreFile.startsWith("classpath:")) {
+            return SAMLUtil.class.getResourceAsStream(keyStoreFile.substring(10));
+        }
+        else if(keyStoreFile.startsWith("file:")) {
+            return new FileInputStream(keyStoreFile.substring(5));
+        }
+
+        throw new SAMLException("no such a file location");
+
+    }
+
+
+    BasicX509Credential getCredentai() {
+
+        try (InputStream is = determinFilePath()) {
+
+
+            keyStore = KeyStore.getInstance("JKS");
+            keyStore.load(is, password.toCharArray());
+
+            KeyStore.PrivateKeyEntry pkEntry = (KeyStore.PrivateKeyEntry) keyStore.getEntry(alias, new KeyStore.PasswordProtection(password.toCharArray()));
+
+            Key privateKey = pkEntry.getPrivateKey(); //Same as keyStore.getKey(alias, password.toCharArray());
+
+            if (privateKey == null) {
+                log.warn("reading privateKey is failed");
+                return null;
+            }
+
+            log.debug("Private Key:\n{}", privateKey);
+
+            X509Certificate cert = (X509Certificate) keyStore.getCertificate(alias);
+
+            BasicX509Credential credential = new BasicX509Credential();
+            credential.setEntityCertificate(cert);
+            credential.setPrivateKey((PrivateKey) privateKey);
+            credential.setUsageType(UsageType.SIGNING);
+
+            return credential;
+        } catch (KeyStoreException | CertificateException | NoSuchAlgorithmException | IOException | UnrecoverableEntryException e) {
+            e.printStackTrace();
+            throw new SAMLException(e);
+        }
+
+    }
+
+
+    void signSAMLObject(SignableSAMLObject samlObject) {
+
+        if (keyStoreFile == null)
+            return;
+
+        Credential credential = getCredentai();
+
+        if (credential == null) {
+            return;
+        }
+
+
+        XMLObjectBuilder<org.opensaml.xml.signature.Signature> builder = builderFactory.getBuilder(org.opensaml.xml.signature.Signature.DEFAULT_ELEMENT_NAME);
+        org.opensaml.xml.signature.Signature sign = builder.buildObject(org.opensaml.xml.signature.Signature.DEFAULT_ELEMENT_NAME);
+
+        try {
+            sign.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
+            sign.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
+            sign.setKeyInfo(new X509KeyInfoGeneratorFactory().newInstance().generate(credential));
+            sign.setSigningCredential(credential);
+
+            KeyInfo key = new KeyInfoBuilder().buildObject();
+            key.setID(UUID.randomUUID().toString());
+            sign.setKeyInfo(key);
+
+            samlObject.setSignature(sign);
+
+            SecurityHelper.prepareSignatureParams(sign, credential, null, null);
+
+            Marshaller marshaller = Configuration.getMarshallerFactory().getMarshaller(samlObject);
+            marshaller.marshall(samlObject);
+            org.opensaml.xml.signature.Signer.signObject(sign);
+
+
+        } catch (SecurityException | SignatureException | MarshallingException e) {
+            throw new SAMLException(e);
+        }
+    }
+
+
+    public String createLoginRequest() {
+        return createLoginRequest(createSAMLRequest(), new HashMap());
+    }
+
+
+    public String createLoginRequest(String request, Map<String, String> values) {
         values.put("SAMLRequest", request);
 
         StringBuilder sb = new StringBuilder();
@@ -194,7 +333,6 @@ public class SAMLUtil {
 
         return sb.toString();
     }
-
 
 
 }

@@ -21,7 +21,22 @@ mvn package
   SAMLUtil samlUtil = new SAMLUtil(<Issuer ID>, <Identity Provider Url>, <ACS Url>);    
 ```
 
-JKS파일 사용하여 SamlRequest를 Signing처리  
+JKS파일 사용하여 SamlRequest를 Signing 할 경우
+- Keystore 생성
+```
+keytool -genkey -alias samlkey \
+-keyalg RSA \
+-keysize 2048  \
+-sigalg SHA256withRSA \
+-validity 735 \
+-keypass secret \
+-storepass secret \
+-keystore keystore.jks
+
+```
+- Java Source  
+키알고리즘이 다를경우 소스를 수정해야 함
+
 ```java
  SAMLUtil samlUtil = new SAMLUtil("com:koreanair:crewnet:sp",
                         "https://accounts.google.com/o/saml2/idp?idpid=C04cdbghf",

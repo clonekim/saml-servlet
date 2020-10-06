@@ -41,7 +41,6 @@ public class SamlLogin extends HttpServlet {
         Map<String, String> values = new HashMap<>();
         Writer writer = resp.getWriter();
         writer.write(samlUtil.getLoginHtml(samlUtil.createSAMLRequest(), values));
-        writer.write("</form></body></html>");
         writer.flush();
 
         resp.setHeader("Cache-Control", "no-cache, no-store");

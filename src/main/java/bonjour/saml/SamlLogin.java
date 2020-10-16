@@ -1,6 +1,5 @@
 package bonjour.saml;
 
-
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -9,7 +8,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
 
-//@WebServlet(name = "SamlLoginServlet", urlPatterns = {"/saml/login"})
 public class SamlLogin extends HttpServlet {
 
     SAMLUtil samlUtil = null;
@@ -17,12 +15,9 @@ public class SamlLogin extends HttpServlet {
     @Override
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
-        /* TODO
-            아래의 값은 property를 통해서 값을 설정 할 것
 
-         */
         try {
-            samlUtil = SAMLUtil.createInstance(config.getInitParameter("sso.config"));
+            samlUtil = SAMLUtil.create(config.getInitParameter("saml.config"));
         } catch (IOException e) {
             e.printStackTrace();
             throw new ServletException(e);
@@ -37,7 +32,7 @@ public class SamlLogin extends HttpServlet {
         resp.setContentType("text/html;charset=UTF-8");
 
         Writer writer = resp.getWriter();
-        writer.write(samlUtil.createLoginRequest());
+        writer.write(samlUtil.toSAMLRequestHtml(true));
         writer.flush();
 
         resp.setHeader("Cache-Control", "no-cache, no-store");

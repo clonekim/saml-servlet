@@ -8,7 +8,7 @@
 ```java
   SAMLUtil samlUtil = new SAMLUtil(
      "classpath:/metadata/GoogleIDPMetadata-koreanair.com.xml",  //IDP Metafile
-      "com:koreanair:crewnet:sp"                                 //Issuer Id
+      "com:koreanair:xxsx:xxxx"                                 //Issuer Id
   );
 
 

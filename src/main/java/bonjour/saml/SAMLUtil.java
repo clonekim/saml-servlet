@@ -54,10 +54,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -130,7 +127,7 @@ public class SAMLUtil {
     /*
       ID Descriptor를 해제 할때 사용 할 credential
     */
-    Certificate credentail;
+    List<Certificate> credentials;
 
 
     private XMLObjectBuilderFactory builderFactory;
@@ -268,7 +265,7 @@ public class SAMLUtil {
 
         Response response = parseSamlResponse(encodedResponse);
 
-        if (this.credentail != null)
+        if (this.credentials != null)
             validateSignature(response);
 
         return function.apply(response);
@@ -284,7 +281,7 @@ public class SAMLUtil {
 
         Response response = parseSamlResponse(encodedResponse);
 
-        if (this.credentail != null)
+        if (this.credentials != null)
             validateSignature(response);
 
         String nameId = response.getAssertions().stream().map(i -> i.getSubject().getNameID().getValue()).findAny().orElse(null);
@@ -332,7 +329,7 @@ public class SAMLUtil {
             IDPSSODescriptor idpSsoDescriptor = entityDescriptor.getIDPSSODescriptor(SAML20P_NS);
 
             this.identityProviderUrl =  parseSingleSignOnService(idpSsoDescriptor, SAML2_POST_BINDING_URI).getLocation();
-            this.credentail = parseCredentail(idpSsoDescriptor);
+            this.credentials = parseCredentail(idpSsoDescriptor);
             this.entityId = entityDescriptor.getEntityID();
 
 
@@ -404,7 +401,7 @@ public class SAMLUtil {
      * @param idpSsoDescriptor
      * @return
      */
-    Certificate parseCredentail(IDPSSODescriptor idpSsoDescriptor) {
+    List<Certificate> parseCredentail(IDPSSODescriptor idpSsoDescriptor) {
         return idpSsoDescriptor
                 .getKeyDescriptors()
                 .stream()
@@ -428,7 +425,7 @@ public class SAMLUtil {
                     }
                     return null;
 
-                }).findAny().orElse(null);
+                }).collect(Collectors.toList());
 
     }
 
@@ -586,11 +583,14 @@ public class SAMLUtil {
      * 이용하여 validator를 작성한다
      * @return
      */
-    public SignatureValidator getValidator() {
-        BasicX509Credential publicCredential = new BasicX509Credential();
-        publicCredential.setPublicKey(credentail.getPublicKey());
+    public List<SignatureValidator> getValidator() {
+        return this.credentials.stream().map(c -> {
+            BasicX509Credential publicCredential = new BasicX509Credential();
+            publicCredential.setPublicKey(c.getPublicKey());
 
-        return new SignatureValidator(publicCredential);
+            return new SignatureValidator(publicCredential);
+        }).collect(Collectors.toList());
+
     }
 
 
@@ -614,15 +614,19 @@ public class SAMLUtil {
     public void validateSignature(Response  response) {
 
         if(response.getSignature() != null) {
-            SignatureValidator validator = getValidator();
+            Signature signature = response.getSignature();
 
-            try {
-                validator.validate(response.getSignature());
-            } catch (ValidationException e) {
-                /* Indicates signature was not cryptographically valid, or possibly a processing error. */
-                e.printStackTrace();
-                throw new SAMLException(e);
-            }
+            getValidator().stream().map(v -> {
+                try {
+                    v.validate(signature);
+                    return true;
+                } catch (ValidationException e) {
+                    /* Indicates signature was not cryptographically valid, or possibly a processing error. */
+                    // e.printStackTrace();
+                    return false;
+                }
+            }).filter(v -> v).findFirst().orElseThrow(() -> new SAMLException("failed to validate about response's signature!"));
+
         }
     }
 

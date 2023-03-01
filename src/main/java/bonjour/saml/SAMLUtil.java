@@ -407,9 +407,9 @@ public class SAMLUtil {
                 .stream()
                 .filter( x -> x.getUse() == UsageType.SIGNING)
                 .flatMap(x -> x.getKeyInfo().getX509Datas().stream().filter( f -> f.getX509Certificates().size() > 0))
-                .map(x -> {
+                .flatMap(x -> x.getX509Certificates().stream())
+                .map(cert -> {
 
-                    X509Certificate cert = x.getX509Certificates().stream().findFirst().orElse(null);
                     if(cert != null) {
 
                         String certString = cert.getValue();

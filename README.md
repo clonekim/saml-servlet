@@ -22,8 +22,6 @@
 
 ```java
 SAMLUtil samlUtil = SAMLUtil.create("classpath:/sso.properity")
-        //또는 prefix를 두번째 인자값으로 넣는다
-SAMLUtil samlUtil = SAMLUtil.create("classpath:/sso.properity", "prd")
 ```
 
 sso.properties 파일의 내용은 아래와 같이 작성  
@@ -34,13 +32,6 @@ sso.idpmetadata = classpath:/metadata/GoogleIDPMetadata-koreanair.com.xml
 sso.keystore.file = classpath:/keystore.jks
 sso.keystore.alias = samlkey
 sso.keystore.password = secret
-```
-
-prefix가 존재하면 환경별로 불러올 수 있음.
-```
-dev.sso.issuerId = com:koreanair:xxx:sp
-//생략
-prd.sso.issuerId = com:koreanair:yyy:sp
 ```
 
 SAML Request를 signing 처리 할 경우 jks 파일을 작성할것 (Keystroe 작성 참조)   

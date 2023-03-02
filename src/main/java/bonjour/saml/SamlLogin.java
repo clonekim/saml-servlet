@@ -16,12 +16,7 @@ public class SamlLogin extends HttpServlet {
     public void init(ServletConfig config) throws ServletException {
         super.init(config);
 
-        try {
-            samlUtil = SAMLUtil.create(config.getInitParameter("saml.config"));
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new ServletException(e);
-        }
+        samlUtil = new SAMLUtil("classpath:/metadata/idp-okta.xml", "urn:test:saml-servlet:sp");
 
     }
 
@@ -32,7 +27,7 @@ public class SamlLogin extends HttpServlet {
         resp.setContentType("text/html;charset=UTF-8");
 
         Writer writer = resp.getWriter();
-        writer.write(samlUtil.toSAMLRequestHtml(true));
+        writer.write(samlUtil.toSAMLRequestHtml(false));
         writer.flush();
 
         resp.setHeader("Cache-Control", "no-cache, no-store");
